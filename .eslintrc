@@ -1,0 +1,12 @@
+{
+  "extends": "airbnb",
+  "env": {
+    "browser": true
+  },
+  "rules": {
+    "indent": [2, 4],
+    "comma-dangle": "off",
+    "no-plusplus": "off",
+    "max-len": [2, 100, 4, {"ignoreComments": true}]
+  }
+}
