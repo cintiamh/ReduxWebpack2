@@ -44,7 +44,7 @@ $ touch dist/index.html
 
 ```
 $ npm init
-$ npm i webpack webpack-dev-server --save-dev
+$ npm i webpack webpack-dev-server istanbul-instrumenter-loader babel-loader --save-dev
 $ touch webpack.config.js
 $ touch .gitignore
 ```
@@ -62,7 +62,7 @@ node_modules/
 ## Babel
 
 ```
-$ npm i babel-loader babel-core babel-preset-react babel-preset-latest --save-dev
+$ npm i babel-core babel-istanbul babel-istanbul-loader babel-plugin-transform-object-rest-spread babel-polyfill babel-preset-latest babel-register --save-dev
 $ touch .babelrc
 ```
 
@@ -70,7 +70,8 @@ $ touch .babelrc
 
 ```javascript
 {
-  "presets": ["latest", "react"]
+  "presets": ["latest"],
+  "plugins": ["transform-object-rest-spread"]
 }
 ```
 
@@ -83,7 +84,7 @@ $ npm i react react-dom redux react-redux --save
 ## ESLint
 
 ```
-$ npm i eslint-config-airbnb eslint-plugin-react eslint eslint-plugin-import eslint-plugin-jsx-a11y --save-dev
+$ npm i eslint eslint-config-airbnb eslint-plugin-import eslint-plugin-jsx-a11y eslint-plugin-react --save-dev
 $ touch .eslintignore
 $ touch .eslintrc
 ```
@@ -92,8 +93,9 @@ $ touch .eslintrc
 
 ```
 node_modules/
+artifacts/
+docs/
 dist/
-test/
 *.config.js
 *.json
 ```
@@ -108,8 +110,6 @@ test/
   },
   "rules": {
     "indent": [2, 4],
-    "comma-dangle": "off",
-    "no-plusplus": "off",
     "max-len": [2, 100, 4, {"ignoreComments": true}]
   }
 }
@@ -118,13 +118,13 @@ test/
 ## Testing
 
 ```
-$ npm i mocha chai sinon babel-register enzyme react-addons-test-utils --save-dev
+$ npm i mocha chai sinon enzyme react-addons-test-utils --save-dev
 ```
 
 ## Karma
 
 ```
-$ npm i karma karma-chai karma-mocha karma-webpack karma-sourcemap-loader karma-phantomjs-launcher karma-spec-reporter yargs --save-dev
+$ npm i karma karma-chai karma-coverage-istanbul-reporter karma-mocha karma-phantomjs-launcher karma-sourcemap-loader karma-spec-reporter karma-tap-reporter karma-webpack yargs --save-dev
 $ touch karma.config.js
 ```
 
@@ -133,6 +133,7 @@ $ touch karma.config.js
 ```javascript
 var argv = require('yargs').argv;
 var path = require('path');
+var webpack = require('./webpack.config.js');
 
 module.exports = function(config) {
   config.set({
@@ -146,12 +147,11 @@ module.exports = function(config) {
     frameworks: ['mocha', 'chai'],
 
     // displays tests in a nice readable format
-    reporters: ['spec'],
+    reporters: ['spec', 'coverage-istanbul', 'tap'],
 
     // include some polyfills for babel and phantomjs
     files: [
-      // 'node_modules/babel-polyfill/dist/polyfill.js',
-      // './node_modules/phantomjs-polyfill/bind-polyfill.js',
+      'node_modules/babel-polyfill/browser.js',
       './test/**/*.js' // specify files to watch for tests
     ],
     preprocessors: {
@@ -159,40 +159,24 @@ module.exports = function(config) {
       // also run tests throug sourcemap for easier debugging
       ['./test/**/*.js']: ['webpack', 'sourcemap']
     },
+    coverageIstanbulReporter: {
+      // reports can be any that are listed here: https://github.com/istanbuljs/istanbul-reports/tree/590e6b0089f67b723a1fdf57bc7ccc080ff189d7/lib
+      reports: ['lcov', 'text-summary'],
+      // base output directory. If you include %browser% in the path it will be replaced with the karma browser name
+      dir: path.join(__dirname, 'artifacts/coverage'),
+      // if using webpack and pre-loaders, work around webpack breaking the source path
+      fixWebpackSourcePaths: true,
+      // stop istanbul outputting messages like `File [${filename}] ignored, nothing could be mapped`
+      skipFilesWithNoCoverage: true,
+    },
+    tapReporter: {
+      outputFile: 'artifacts/test/results.tap',
+      disableStdout: true
+    },
     // A lot of people will reuse the same webpack config that they use
     // in development for karma but remove any production plugins like UglifyJS etc.
     // I chose to just re-write the config so readers can see what it needs to have
-    webpack: {
-       devtool: 'inline-source-map',
-       context: path.resolve(__dirname, './src'),
-       resolve: {
-        // required for enzyme to work properly
-        alias: {
-          'sinon': 'sinon/pkg/sinon'
-        }
-      },
-      module: {
-        rules: [
-          {
-            test: /\.js?$/,
-            exclude: [/node_modules/],
-            use: [{
-              loader: 'babel-loader',
-              options: {
-                presets: ['latest', 'react']
-              }
-            }]
-          }
-        ]
-      },
-      // required for enzyme to work properly
-      externals: {
-        'jsdom': 'window',
-        'cheerio': 'window',
-        'react/lib/ExecutionEnvironment': true,
-        'react/lib/ReactContext': 'window'
-      },
-    },
+    webpack: webpack,
     webpackMiddleware: {
       noInfo: true
     },
@@ -202,7 +186,9 @@ module.exports = function(config) {
       'karma-webpack',
       'karma-phantomjs-launcher',
       'karma-spec-reporter',
-      'karma-sourcemap-loader'
+      'karma-sourcemap-loader',
+      'karma-coverage-istanbul-reporter',
+      'karma-tap-reporter'
     ]
   });
 };
